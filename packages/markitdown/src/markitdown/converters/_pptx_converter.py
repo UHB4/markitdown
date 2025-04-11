@@ -4,6 +4,7 @@ import os
 import io
 import re
 import html
+import uuid
 
 from typing import BinaryIO, Any
 from operator import attrgetter
@@ -139,9 +140,22 @@ class PptxConverter(DocumentConverter):
                     alt_text = "\n".join([llm_description, alt_text]) or shape.name
                     alt_text = re.sub(r"[\r\n\[\]]", " ", alt_text)
                     alt_text = re.sub(r"\s+", " ", alt_text).strip()
-
+                    
+                    uploader = kwargs.get("upload_handler")
+                    if uploader:
+                        # Pass the image and metadata to the upload handler
+                        blob = shape.image.blob
+                        
+                        original_ext = os.path.splitext(shape.image.filename)[1] if shape.image.filename else ".jpg"
+                        unique_filename = f"{uuid.uuid4().hex}{original_ext}"
+                        meta = {
+                            "filename": unique_filename,
+                            "content_type": shape.image.content_type or "image/png",
+                        }
+                        image_url = uploader(blob, meta)
+                        md_content += f"\n![{alt_text}]({image_url})\n"
                     # If keep_data_uris is True, use base64 encoding for images
-                    if kwargs.get("keep_data_uris", False):
+                    elif kwargs.get("keep_data_uris", False):
                         blob = shape.image.blob
                         content_type = shape.image.content_type or "image/png"
                         b64_string = base64.b64encode(blob).decode("utf-8")
